@@ -1,0 +1,2 @@
+# electric_chair_game_nash
+電気椅子ゲームのナッシュ均衡値を求める
