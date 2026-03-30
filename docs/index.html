@@ -3,15 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>電気椅子ゲーム 均衡ルックアップ</title>
+  <title>電気椅子ゲーム 均衡ルックアップ (SQLite Range)</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <main class="container">
     <header class="header">
       <h1>⚡ 電気椅子ゲーム</h1>
-      <p class="tagline">均衡戦略ルックアップ</p>
-      <p><a class="action-btn" href="sqlite.html">SQLite Range版を開く</a></p>
+      <p class="tagline">均衡戦略ルックアップ（SQLite + HTTP Range）</p>
     </header>
 
     <form id="lookup-form" class="form-grid">
@@ -99,7 +98,7 @@
         <h2>検索結果</h2>
       </div>
       <div class="panel-body">
-        <div id="summary" class="summary-box status-msg">未検索</div>
+        <div id="summary" class="summary-box status-msg">SQLiteエンジン初期化中...</div>
         <div class="result-grid">
           <div class="result-col attacker-result">
             <h3>座る側戦略</h3>
@@ -120,6 +119,6 @@
     </section>
   </main>
 
-  <script src="app.js"></script>
+  <script type="module" src="sqlite-app.js"></script>
 </body>
 </html>

@@ -134,16 +134,15 @@ python scripts/build_pages_sqlite.py \
 - `--sv-scale` は状態価値の有効数字を下げる設定（値が小さいほど粗く・軽くなる）
 - 1ファイル100MB制約に近づく場合は `--shards` を増やす
 
-2. `docs/sqlite.html` を公開ページとして利用
+2. `docs/index.html` を公開ページとして利用
 
-- URL例: `https://<username>.github.io/<repo>/sqlite.html`
+- URL例: `https://<username>.github.io/<repo>/`
 - フロントは `sql.js-httpvfs` を使って `sqlite_manifest.json` から該当shardを選び、
 	Range読み込みします。
 
 補足:
 
-- 既存の `docs/index.html` はJSONチャンク版です。
-- フルデータ検索は `docs/sqlite.html` を使うと運用しやすいです。
+- 現在は `docs/index.html` がSQLite Range版に統一されています。
 
 ### ローカルテスト
 

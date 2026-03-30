@@ -1,4 +1,12 @@
-import { createDbWorker } from "https://cdn.jsdelivr.net/npm/sql.js-httpvfs@0.8.12/dist/index.js";
+import SqlJsHttpVfs from "https://esm.sh/sql.js-httpvfs@0.8.12";
+
+const createDbWorker =
+  SqlJsHttpVfs?.createDbWorker ||
+  SqlJsHttpVfs?.default?.createDbWorker;
+
+if (typeof createDbWorker !== "function") {
+  throw new Error("sql.js-httpvfs createDbWorker is not available");
+}
 
 const allChairs = Array.from({ length: 12 }, (_, i) => i + 1);
 const selectedChairs = new Set(allChairs);
