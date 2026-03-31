@@ -1,24 +1,15 @@
-import SqlJsHttpVfs from "https://esm.sh/sql.js-httpvfs@0.8.12";
-
-const createDbWorker =
-  SqlJsHttpVfs?.createDbWorker ||
-  SqlJsHttpVfs?.default?.createDbWorker;
-
-if (typeof createDbWorker !== "function") {
-  throw new Error("sql.js-httpvfs createDbWorker is not available");
-}
+import initSqlJs from "https://esm.sh/sql.js@1.10.3";
 
 const allChairs = Array.from({ length: 12 }, (_, i) => i + 1);
 const selectedChairs = new Set(allChairs);
 
-const workerUrl = new URL("./vendor/sqlite.worker.js", import.meta.url).toString();
-const wasmUrl = new URL("./vendor/sql-wasm.wasm", import.meta.url).toString();
+const wasmUrl = new URL("./vendor/sqljs-wasm.wasm", import.meta.url).toString();
 const dataBaseUrl = new URL("./data/", import.meta.url);
 
 let manifest = null;
 let activeShardFile = null;
-let dbWorker = null;
-const shardLengthCache = new Map();
+let activeDb = null;
+let sqlJs = null;
 
 function computeStateKey(attackerPoints, defenderPoints, attackerShocks, defenderShocks, chairMask) {
   return (
@@ -200,101 +191,64 @@ async function loadManifest() {
   return manifest;
 }
 
-function findShardMeta(fileName) {
-  if (!manifest || !manifest.ranges) return null;
-  return manifest.ranges.find((range) => range.file === fileName) || null;
-}
-
-async function resolveShardLength(fileName, shardUrl) {
-  if (shardLengthCache.has(fileName)) {
-    return shardLengthCache.get(fileName);
-  }
-
-  const shardMeta = findShardMeta(fileName);
-  const fromManifest = Number(shardMeta?.size_bytes || 0);
-  if (Number.isFinite(fromManifest) && fromManifest > 0) {
-    shardLengthCache.set(fileName, fromManifest);
-    return fromManifest;
-  }
-
-  const resp = await fetch(shardUrl, {
-    method: "GET",
-    headers: { Range: "bytes=0-0" },
-    cache: "no-store",
+async function ensureSqlJs() {
+  if (sqlJs) return sqlJs;
+  sqlJs = await initSqlJs({
+    locateFile: () => wasmUrl,
   });
-  if (!resp.ok && resp.status !== 206) {
-    throw new Error(`failed to probe shard length: ${fileName} status=${resp.status}`);
-  }
-  const contentRange = resp.headers.get("content-range") || resp.headers.get("Content-Range") || "";
-  const m = contentRange.match(/\/(\d+)\s*$/);
-  const parsed = m ? Number(m[1]) : 0;
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    throw new Error(`failed to parse shard length from content-range: ${fileName}`);
-  }
-  shardLengthCache.set(fileName, parsed);
-  return parsed;
+  return sqlJs;
 }
 
-async function initWorkerForShard(fileName) {
-  if (dbWorker && activeShardFile === fileName) return dbWorker;
+async function loadShardDb(fileName) {
+  if (activeDb && activeShardFile === fileName) return activeDb;
 
-  const shardUrl = new URL(fileName, dataBaseUrl).toString();
-  const shardLength = await resolveShardLength(fileName, shardUrl);
+  const summary = document.getElementById("summary");
+  if (summary.classList.contains("status-msg")) {
+    summary.textContent = `SQLite shard読込中... (${fileName})`;
+  }
 
-  if (dbWorker && dbWorker.db && typeof dbWorker.db.close === "function") {
+  if (activeDb && typeof activeDb.close === "function") {
     try {
-      await dbWorker.db.close();
+      activeDb.close();
     } catch (_e) {
       // ignore close errors
     }
   }
 
-  const summary = document.getElementById("summary");
-  if (summary.classList.contains("status-msg")) {
-    summary.textContent = `SQLiteエンジン初期化中... (${fileName})`;
+  const sqlite = await ensureSqlJs();
+  const shardUrl = new URL(fileName, dataBaseUrl).toString();
+  const resp = await fetch(shardUrl, { cache: "no-store" });
+  if (!resp.ok) {
+    throw new Error(`shard fetch failed: ${resp.status} (${fileName})`);
   }
 
-  dbWorker = await createDbWorker(
-    [
-      {
-        from: "inline",
-        config: {
-          serverMode: "full",
-          requestChunkSize: 4096,
-          url: shardUrl,
-          fileLength: shardLength,
-          databaseLengthBytes: shardLength,
-          cacheBust: "v1",
-        },
-      },
-    ],
-    workerUrl,
-    wasmUrl,
-  );
-
+  const raw = await resp.arrayBuffer();
+  activeDb = new sqlite.Database(new Uint8Array(raw));
   activeShardFile = fileName;
-  return dbWorker;
+  return activeDb;
 }
 
 async function lookupState(stateKey) {
   const meta = await loadManifest();
   const shardFile = findShardForKey(stateKey);
   if (!shardFile) return null;
-  const worker = await initWorkerForShard(shardFile);
-  const rows = await worker.db.query(
-    "SELECT sv_i, a, d, t FROM lookup WHERE state_key = ?",
-    [stateKey],
-  );
-  if (!rows || rows.length === 0) return null;
+  const db = await loadShardDb(shardFile);
+  const stmt = db.prepare("SELECT sv_i, a, d, t FROM lookup WHERE state_key = ?");
+  try {
+    stmt.bind([stateKey]);
+    if (!stmt.step()) return null;
 
-  const row = rows[0];
-  const svScale = Number(meta.sv_scale || 1000);
-  return {
-    sv: Number(getCell(row, "sv_i")) / svScale,
-    a: decodeStrategy(getCell(row, "a")),
-    d: decodeStrategy(getCell(row, "d")),
-    t: Boolean(getCell(row, "t")),
-  };
+    const row = stmt.getAsObject();
+    const svScale = Number(meta.sv_scale || 1000);
+    return {
+      sv: Number(getCell(row, "sv_i")) / svScale,
+      a: decodeStrategy(getCell(row, "a")),
+      d: decodeStrategy(getCell(row, "d")),
+      t: Boolean(getCell(row, "t")),
+    };
+  } finally {
+    stmt.free();
+  }
 }
 
 async function onSubmit(event) {
