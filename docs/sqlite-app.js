@@ -11,8 +11,8 @@ if (typeof createDbWorker !== "function") {
 const allChairs = Array.from({ length: 12 }, (_, i) => i + 1);
 const selectedChairs = new Set(allChairs);
 
-const workerUrl = "https://cdn.jsdelivr.net/npm/sql.js-httpvfs@0.8.12/dist/sqlite.worker.js";
-const wasmUrl = "https://cdn.jsdelivr.net/npm/sql.js-httpvfs@0.8.12/dist/sql-wasm.wasm";
+const workerUrl = new URL("./vendor/sqlite.worker.js", import.meta.url).toString();
+const wasmUrl = new URL("./vendor/sql-wasm.wasm", import.meta.url).toString();
 
 let manifest = null;
 let activeShardFile = null;
