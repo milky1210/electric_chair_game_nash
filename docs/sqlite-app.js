@@ -191,7 +191,7 @@ function findShardForKey(stateKey) {
 
 async function loadManifest() {
   if (manifest) return manifest;
-  const res = await fetch("data/sqlite_manifest.json");
+  const res = await fetch(new URL("sqlite_manifest.json", dataBaseUrl).toString());
   if (!res.ok) {
     throw new Error(`manifest fetch failed: ${res.status}`);
   }
@@ -199,8 +199,18 @@ async function loadManifest() {
   return manifest;
 }
 
+function findShardMeta(fileName) {
+  if (!manifest || !manifest.ranges) return null;
+  return manifest.ranges.find((range) => range.file === fileName) || null;
+}
+
 async function initWorkerForShard(fileName) {
   if (dbWorker && activeShardFile === fileName) return dbWorker;
+
+  const shardMeta = findShardMeta(fileName);
+  if (!shardMeta || !Number.isFinite(Number(shardMeta.size_bytes))) {
+    throw new Error(`shard metadata missing size_bytes: ${fileName}`);
+  }
 
   if (dbWorker && dbWorker.db && typeof dbWorker.db.close === "function") {
     try {
@@ -223,6 +233,7 @@ async function initWorkerForShard(fileName) {
           serverMode: "full",
           requestChunkSize: 4096,
           url: new URL(fileName, dataBaseUrl).toString(),
+          fileLength: Number(shardMeta.size_bytes),
           cacheBust: "v1",
         },
       },
