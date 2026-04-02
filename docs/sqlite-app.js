@@ -321,14 +321,14 @@ async function onSubmit(event) {
   }
 
   const roundNum = deriveRoundNum(attackerShocks, defenderShocks, chairMask);
-  const normalizedAdvantage = Math.max(-2, Math.min(2, result.sv)) / 2;
-  const attackerRate = Math.round(50 + normalizedAdvantage * 50);
+  const boundedStateValue = Math.max(-1, Math.min(1, Number(result.sv)));
+  const attackerRate = Math.round(((boundedStateValue + 1) / 2) * 100);
   const defenderRate = 100 - attackerRate;
 
   summary.className = "summary-box";
   summary.innerHTML = `
     <div class="win-rate-display">
-      <div class="win-rate-header">第${roundNum}ラウンド時点での優勢度</div>
+      <div class="win-rate-header">第${roundNum}ラウンド時点での勝率目安（座る側）</div>
       <div class="win-rate-bar-wrap">
         <span class="win-rate-label attacker">座る側</span>
         <div class="win-rate-bar">
